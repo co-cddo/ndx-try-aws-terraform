@@ -2,6 +2,51 @@ provider "aws" {
   region = "us-west-2"
 }
 
+# S3 bucket for remote backend
+resource "aws_s3_bucket" "ndx_try_tf_state" {
+  bucket = "ndx-try-tf-state"
+}
+
+resource "aws_s3_bucket_acl" "ndx_try_tf_state_acl" {
+  bucket     = aws_s3_bucket.ndx_try_tf_state.id
+  acl        = "private"
+  depends_on = [aws_s3_bucket_ownership_controls.private_storage]
+
+}
+
+resource "aws_kms_key" "ndx_try_tf_state_kms_key" {
+  description             = "This key is used to encrypt ndx_try_tf_state bucket objects"
+  deletion_window_in_days = 10
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "ndx_try_tf_state_encryption" {
+  bucket = aws_s3_bucket.ndx_try_tf_state.bucket
+
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = aws_kms_key.ndx_try_tf_state_kms_key.arn
+      sse_algorithm     = "aws:kms"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "ndx_try_tf_state_versioning" {
+  bucket = aws_s3_bucket.ndx_try_tf_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Resource to avoid error "AccessControlListNotSupported: The bucket does not allow ACLs"
+resource "aws_s3_bucket_ownership_controls" "private_storage" {
+  bucket = aws_s3_bucket.ndx_try_tf_state.id
+  rule {
+    object_ownership = "ObjectWriter"
+  }
+}
+
+
+# Billing data for David Heath
 locals {
   gds_users_account_id = "622626885786"
   billing_users = [
